@@ -1,0 +1,136 @@
+                       HEALTH AND FITNESS TRACKER DATA
+
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, IntegerType, DoubleType, StringType
+from pyspark.sql.functions import sum, col
+
+# Create a Spark session
+spark = SparkSession.builder.appName("Health & Fitness Tracker").getOrCreate()
+
+# Sample data with all numeric values properly typed
+data = [
+    (1, "2023-09-01", 12000, 500, 7.0, "Cardio"),
+    (2, "2023-09-01", 8000, 400, 6.5, "Strength"),
+    (3, "2023-09-01", 15000, 650, 8.0, "Yoga"),
+    (1, "2023-09-02", 10000, 450, 6.0, "Cardio"),
+    (2, "2023-09-02", 9500, 500, 7.0, "Cardio"),
+    (3, "2023-09-02", 14000, 600, 7.5, "Strength"),
+    (1, "2023-09-03", 13000, 550, 8.0, "Yoga"),
+    (2, "2023-09-03", 12000, 520, 6.5, "Yoga"),
+    (3, "2023-09-03", 16000, 700, 7.0, "Cardio")
+]
+
+# Define the schema explicitly
+schema = StructType([
+    StructField("user_id", IntegerType(), False),
+    StructField("date", StringType(), False),
+    StructField("steps", IntegerType(), False),  # Use IntegerType for steps
+    StructField("calories_burned", IntegerType(), False),  # Use IntegerType for calories
+    StructField("hours_of_sleep", DoubleType(), False),
+    StructField("workout_type", StringType(), False)
+])
+
+# Create DataFrame with the defined schema
+df = spark.createDataFrame(data, schema)
+df.show()
+
+#1.Group by user_id and calculate the total steps taken by each user
+total_steps_per_user = df.groupBy("user_id").agg(
+    sum("steps").alias("total_steps"))
+
+total_steps_per_user.show()
+
+
+#2.Filter Days with More Than 10,000 Steps
+#Filter the dataset to show only the days where the user took more than 10,000 steps.
+
+days_with_high_steps = df.filter(col("steps") > 10000)
+days_with_high_steps.show()
+
+
+#3. Calculate the Average Calories Burned by Workout Type
+#Group the data by workout_type and calculate the average calories burned for each workout type.
+
+average_calories_by_workout = df.groupBy("workout_type").agg(
+    avg("calories_burned").alias("average_calories_burned"))
+average_calories_by_workout.show()
+
+
+#4.Identify the Day with the Most Steps for Each User
+#For each user, find the day when they took the most steps.
+
+from pyspark.sql.functions import col, max
+
+df_alias = df.alias("df")
+max_steps_per_user = df_alias.groupBy("user_id").agg(
+    max("steps").alias("max_steps")
+)
+
+# Join with the original DataFrame to get the full row information
+day_with_most_steps = df_alias.join(
+    max_steps_per_user,
+    (df_alias["user_id"] == max_steps_per_user["user_id"]) &
+    (df_alias["steps"] == max_steps_per_user["max_steps"])
+).select(
+    df_alias["user_id"], 
+    df_alias["date"], 
+    df_alias["steps"]
+)
+day_with_most_steps.show()
+
+
+#5. Find Users Who Burned More Than 600 Calories on Any Day
+#Filter the data to show only the users who burned more than 600 calories on any day.
+
+users_with_high_calories = df.filter(col("calories_burned") > 600).select("user_id").distinct()
+users_with_high_calories.show()
+
+
+#6. Calculate the Average Hours of Sleep per User
+#Group the data by user_id and calculate the average hours of sleep for each user.
+
+average_sleep_per_user = df_alias.groupBy("user_id").agg(
+    avg("hours_of_sleep").alias("average_hours_of_sleep"))
+average_sleep_per_user.show()
+
+
+#7. Find the Total Calories Burned per Day
+#Group the data by date and calculate the total calories burned by all users combined for each day.
+
+total_calories_per_day = df_alias.groupBy("date").agg(
+    sum("calories_burned").alias("total_calories_burned"))
+total_calories_per_day.show()
+
+
+#8. Identify Users Who Did Different Types of Workouts
+#Identify users who participated in more than one type of workout.
+
+from pyspark.sql.functions import countDistinct
+users_with_multiple_workouts = df_alias.groupBy("user_id").agg(
+    countDistinct("workout_type").alias("distinct_workout_types")
+).filter(col("distinct_workout_types") > 1)
+
+users_with_multiple_workouts.show()
+
+
+#9. Calculate the Total Number of Workouts per User
+#Group the data by user_id and count the total number of workouts completed by each user.
+
+total_workouts_per_user = df_alias.groupBy("user_id").count().alias("total_workouts")
+total_workouts_per_user.show()
+
+
+#10. Create a New Column for "Active" Days
+#Add a new column called active_day that classifies a day as "Active" if the user took more than 10,000 steps, otherwise classify it as "Inactive."
+
+from pyspark.sql.functions import when
+
+# Create a new column for "Active" or "Inactive" days
+df_with_activity_status = df_alias.withColumn(
+    "active_day",
+    when(col("steps") > 10000, "Active").otherwise("Inactive"))
+df_with_activity_status.show()
+
+
+
+

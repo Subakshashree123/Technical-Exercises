@@ -1,0 +1,117 @@
+                               MUSIC SREAMING DATA
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import sum,avg,col
+
+# Create a Spark session
+spark = SparkSession.builder.appName("Music Streaming Analysis").getOrCreate()
+
+# Sample data
+data = [
+    (1, "Blinding Lights", "The Weeknd", 200, "2023-09-01 08:15:00", "New York"),
+    (2, "Shape of You", "Ed Sheeran", 240, "2023-09-01 09:20:00", "Los Angeles"),
+    (3, "Levitating", "Dua Lipa", 180, "2023-09-01 10:30:00", "London"),
+    (1, "Starboy", "The Weeknd", 220, "2023-09-01 11:00:00", "New York"),
+    (2, "Perfect", "Ed Sheeran", 250, "2023-09-01 12:15:00", "Los Angeles"),
+    (3, "Don't Start Now", "Dua Lipa", 200, "2023-09-02 08:10:00", "London"),
+    (1, "Save Your Tears", "The Weeknd", 210, "2023-09-02 09:00:00", "New York"),
+    (2, "Galway Girl", "Ed Sheeran", 190, "2023-09-02 10:00:00", "Los Angeles"),
+    (3, "New Rules", "Dua Lipa", 230, "2023-09-02 11:00:00", "London")
+]
+# Define the schema
+columns = ["user_id", "song_title", "artist", "duration_seconds", "streaming_time", "location"]
+schema = StructType([StructField(col, StringType(), False) if col != "duration_seconds" else StructField(col, IntegerType(), False) for col in columns])
+
+# Create DataFrame with the defined schema
+df = spark.createDataFrame(data, schema)
+df.show()
+
+#1.Calculate the total listening time for each user
+total_listening_time_per_user = df.groupBy("user_id").agg(
+    sum("duration_seconds").alias("total_listening_time_seconds"))
+
+# Show the result
+total_listening_time_per_user.show()
+
+
+#2.Filter Songs Streamed for More Than 200 Seconds
+#Filter the dataset to show only the songs where the duration_seconds is greater than 200.
+
+filtered_songs=df.filter(col('duration_seconds')>200)
+filtered_songs.show()
+
+
+#3.Find the Most Popular Artist (by Total Streams)
+#Group the data by artist and find the artist with the most streams (i.e., the highest number of song plays).
+
+popular_artist = df.groupBy("artist").agg(
+    count("song_title").alias("total_streams")).orderBy("total_streams", ascending=False).limit(1)
+popular_artist.show()
+
+
+#4.Identify the Song with the Longest Duration
+#Identify the song with the longest duration in the dataset.
+
+longest_duration_song = df.orderBy(col("duration_seconds").desc()).limit(1)
+longest_duration_song.show()
+
+
+#5.Group the data by artist and calculate the average song duration for each artist.
+
+average_duration_by_artist = df.groupBy("artist").agg(
+    avg("duration_seconds").alias("average_duration_seconds"))
+average_duration_by_artist.show()
+
+
+#6. Find the Top 3 Most Streamed Songs per User
+#For each user, find the top 3 most-streamed songs (i.e., songs they played most frequently).
+
+from pyspark.sql.window import Window
+from pyspark.sql.functions import row_number
+
+stream_counts = df.groupBy("user_id", "song_title").agg(
+    count("song_title").alias("stream_count"))
+window_spec = Window.partitionBy("user_id").orderBy(col("stream_count").desc())
+# Add a rank column based on the number of streams
+ranked_songs = stream_counts.withColumn("rank", row_number().over(window_spec))
+# Filter to get the top 3 most-streamed songs per user
+top_3_songs_per_user = ranked_songs.filter(col("rank") <= 3)
+top_3_songs_per_user.show()
+
+
+#7. Calculate the Total Number of Streams per Day
+#Group the data by streaming_time (by extracting the date) and calculate the total number of streams for each day.
+
+from pyspark.sql.functions import to_date, count
+streams_per_day = df.withColumn("date", to_date(col("streaming_time"))).groupBy("date").agg(
+    count("song_title").alias("total_streams"))
+streams_per_day.show()
+
+
+#8. Identify Users Who Streamed Songs from More Than One Artist
+#Find users who listened to songs by more than one artist.
+
+from pyspark.sql.functions import countDistinct
+artists_per_user = df.groupBy("user_id").agg(
+    countDistinct("artist").alias("distinct_artists"))
+users_multiple_artists = artists_per_user.filter(col("distinct_artists") > 1)
+users_multiple_artists.show()
+
+
+#9. Calculate the Total Streams for Each Location
+#Group the data by location and calculate the total number of streams for each location.
+
+streams_per_location = df.groupBy("location").agg(
+    count("song_title").alias("total_streams"))
+streams_per_location.show()
+
+
+#10. Create a New Column to Classify Long and Short Songs
+#Add a new column song_length that classifies a song as "Long" if duration_seconds > 200 , otherwise classify it as "Short."
+
+from pyspark.sql.functions import when
+
+df_with_length_classification = df.withColumn(
+    "song_length",
+    when(col("duration_seconds") > 200, "Long").otherwise("Short"))
+df_with_length_classification.show()

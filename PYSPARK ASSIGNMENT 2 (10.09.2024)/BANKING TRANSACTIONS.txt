@@ -1,0 +1,117 @@
+                              BANKING TRANSACTIONS
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import sum, col,avg
+
+# Create a Spark session
+spark = SparkSession.builder.appName("Banking Transactions").getOrCreate()
+
+# Sample data
+data = [
+    (1, 201, "Deposit", 5000, "2023-09-01"),
+    (2, 202, "Withdrawal", 2000, "2023-09-01"),
+    (3, 203, "Deposit", 3000, "2023-09-02"),
+    (4, 201, "Withdrawal", 1500, "2023-09-02"),
+    (5, 204, "Deposit", 10000, "2023-09-03"),
+    (6, 205, "Withdrawal", 500, "2023-09-03"),
+    (7, 202, "Deposit", 2500, "2023-09-04"),
+    (8, 206, "Withdrawal", 700, "2023-09-04"),
+    (9, 203, "Deposit", 4000, "2023-09-05"),
+    (10, 204, "Withdrawal", 3000, "2023-09-05")
+]
+
+# Define the schema
+columns = ["transaction_id", "customer_id", "transaction_type", "amount", "transaction_date"]
+
+# Create DataFrame
+df = spark.createDataFrame(data, columns)
+df.show()
+
+
+# 1.Group by transaction_type and calculate the total amounts for deposits and withdrawals
+total_amounts_by_type = df.groupBy("transaction_type").agg(
+    sum("amount").alias("total_amount"))
+total_amounts_by_type.show()
+
+
+#2. Filter Transactions Greater Than $3,000
+#Filter the dataset to show only transactions where the amount is greater than $3,000.
+
+filtered_transaction=df.filter(col('amount')>3000)
+filtered_transaction.show()
+
+
+#3. Find the Largest Deposit Made
+#Identify the transaction with the highest deposit amount.
+
+highest_deposit = df.filter(col("transaction_type") == "Deposit").orderBy(col("amount").desc()).limit(1)
+highest_deposit.show()
+
+
+#4. Calculate the Average Transaction Amount for Each Transaction Type
+#Group the data by transaction_type and calculate the average amount for deposits and withdrawals.
+
+avg_transaction_amount_by_type = df.groupBy("transaction_type").agg(
+    avg("amount").alias("avg_amount"))
+avg_transaction_amount_by_type.show()
+
+
+#5.Find Customers Who Made Both Deposits and Withdrawals
+#Identify customers who have made at least one deposit and one withdrawal.
+
+deposit_customers = df.filter(col("transaction_type") == "Deposit").select("customer_id").distinct()
+# Find customers who have made withdrawals
+withdrawal_customers = df.filter(col("transaction_type") == "Withdrawal").select("customer_id").distinct()
+# Find customers who have made both deposits and withdrawals
+customers_with_both = deposit_customers.intersect(withdrawal_customers)
+customers_with_both.show()
+
+
+#6. Calculate the Total Amount of Transactions per Day
+#Group the data by transaction_date and calculate the total amount of all transactions for each day.
+
+total_amount_per_day = df.groupBy("transaction_date").agg(
+    sum("amount").alias("total_amount"))
+total_amount_per_day.show()
+
+
+
+#7. Find the Customer with the Highest Total Withdrawal
+#Calculate the total amount withdrawn by each customer and identify the customer with the highest total withdrawal.
+
+total_withdrawals_per_customer = df.filter(col("transaction_type") == "Withdrawal").groupBy("customer_id").agg(
+    sum("amount").alias("total_withdrawal"))
+# Find the customer with the highest total withdrawal
+customer_with_highest_withdrawal = total_withdrawals_per_customer.orderBy(col("total_withdrawal").desc()).limit(1)
+customer_with_highest_withdrawal.show()
+
+
+#8. Calculate the Number of Transactions for Each Customer
+#Group the data by customer_id and calculate the total number of transactions made by each customer.
+
+transactions_per_customer = df.groupBy("customer_id").agg(
+    count("transaction_id").alias("number_of_transactions"))
+transactions_per_customer.show()
+
+
+#9. Find All Transactions That Occurred on the Same Day as a Withdrawal Greater Than $1,000
+#Filter the data to show all transactions that occurred on the same day as a withdrawal of more than $1,000.
+
+dates_with_large_withdrawals = df.filter(
+    (col("transaction_type") == "Withdrawal") & (col("amount") > 1000)).select("transaction_date").distinct()
+transactions_on_same_days = df.join(dates_with_large_withdrawals, on="transaction_date", how="inner")
+transactions_on_same_days.show()
+
+
+
+#10. Create a New Column to Classify Transactions as "High" or "Low" Value
+#Add a new column transaction_value that classifies a transaction as "High" if the amount is greater than $5,000, otherwise classify it as "Low."
+
+from pyspark.sql.functions import when
+
+# Add a new column to classify transactions as "High" or "Low" value
+df_with_classification = df.withColumn("transaction_value",
+    when(col("amount") > 5000, "High").otherwise("Low"))
+df_with_classification.show()
+
+

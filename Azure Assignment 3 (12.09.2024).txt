@@ -1,0 +1,58 @@
+Assignment 3 (Azure Databricks)
+
+#Working with delta tables
+
+#1. Convert CSV and JSON Data to Delta Format:
+#Convert the employee_data.csv and product_data.json into Delta Tables.
+
+# Save the DataFrame as a Delta table
+df_csv.write.format("delta").mode("overwrite").save('dbfs:/Filestore/delta/employee_data')
+
+df_json.write.format("delta").mode("overwrite").save('dbfs:/Filestore/delta/product_data')
+
+
+2. Register Delta Tables:
+
+delta_employee=spark.read.format("delta").load("dbfs:/Filestore/delta/employee_data")
+
+delta_product=spark.read.format("delta").load("dbfs:/Filestore/delta/product_data")
+
+#Register both the employee and product Delta tables as SQL tables.
+
+delta_employee.write.saveAsTable ("delta_employee_table")
+delta_employee.write.saveAsTable ("delta_product_table")   
+
+delta_employee.show()
+delta_product.show()
+
+
+3. Data Modifications with Delta Tables:
+#Update operation: Increase the salary by 5% for all employees in the IT Department
+
+spark.sql("""
+          UPDATE delta_employee_table 
+          SET Salary = Salary * 1.05 
+          WHERE Department='IT'
+""")
+spark.sql("select* from delta_employee_table").show()
+
+#Delete operation:Delete products where the stock is less than 40
+query2=spark.sql("""
+                 DELETE FROM sales_delta_table
+                 WHERE stock < 40
+                 """)
+spark.sql("select* from sales_delta_table").show()
+
+
+#Query the employee Delta table to find employees in the Finance Department
+finance_employees_df=spark.sql("select * from delta_employee_table where Department='Finance'")
+finance_employees_df.show(truncate=False)
+
+
+#Query the product Delta table to find products in the Ellectronics category with a price greater than 500
+electronics_df=spark.sql("select * from sales_delta_table where Category='Electronics' and Price>500")
+electronics_df.show(truncate=False)
+
+
+
+

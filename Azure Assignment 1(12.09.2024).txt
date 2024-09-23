@@ -1,0 +1,35 @@
+ASSIGNMENT 1 (Azure Databricks)
+
+#1.Load the CSV data
+dbutils.fs.cp("file:/Workspace/Shared/employee_data.csv","dbfs:/Filestore/employee_data.csv")
+
+#Display te first 10 rows and inspect the schema
+df_csv=spark.read.format("csv").option("header","true").load("dbfs:/Filestore/employee_data.csv")
+df_csv.show()
+
+
+#2.Data Cleaning
+#Remove rows where the Salary is less than 55,000.
+df_filtered = df_csv.filter(df_csv['salary'] >= 55000)
+df_filtered.show()
+
+#Filter the employees who joined after the year 2020.
+df_filtered = df_csv.filter(df_csv['JoiningDate'] >= '2020-01-01')
+df_filtered.show()
+
+# Ensure the salary column is of numeric type
+df_csv = df_csv.withColumn("salary", df_csv["salary"].cast("float"))
+
+
+#3.Data Aggregation:
+#Find the average salary by Department.
+df_csv.groupBy("Department").avg("salary").show()
+
+#Count the number of employees in each Department.
+df_csv.groupBy("Department").count().show()
+
+
+#4. Write the Data to CSV:
+#Save the cleaned data (from the previous steps) to a new CSV file.
+
+df_filtered.write.csv('dbfs:/Filestore/cleaned_data.csv', header=True)

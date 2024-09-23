@@ -1,0 +1,166 @@
+# 1. Introduction to Databricks
+# Task: Creating a Databricks Notebook
+
+# Creating a list of numbers
+numbers = [10, 20, 30, 40, 50]
+
+# Calculating the sum of the numbers
+sum_numbers = sum(numbers)
+print(sum_numbers)
+
+# 2. Setting Up Azure Databricks Workspace and Configuring Clusters
+# Task: Configuring Clusters
+
+multiply = 21*5
+print(multiply")
+print("Configuration verified")
+
+# 3. Real-Time Data Processing with Databricks
+# Task: Implementing Databricks for Real-Time Data Processing
+
+dbutils.fs.cp("file:/Workspace/streaming_data.csv", "dbfs:/FileStore/streaming_data.csv")
+schema="event_time TIMESTAMP, event_type STRING, user_id STRING, amount DOUBLE"
+df_stream = spark.readStream.format("csv").schema(schema).load("dbfs:/FileStore/streaming_data.csv")
+
+# Perform real-time aggregation (sum of amount per event_type)
+aggregated_df = df_stream.groupBy("event_type").sum("amount")
+
+query = aggregated_df.writeStream.outputMode("complete").format("console").start()
+
+
+# 4. Data Exploration and Visualization in Databricks
+# Task: Visualizing Data in Databricks
+# Load sales data (CSV)
+
+import pyspark.sql.functions as F
+dbutils.fs.cp("file:/Workspace/sales_data.csv", "dbfs:/FileStore/sales_data.csv")
+sales_df = spark.read.format("csv").option("header", "true").option("inferSchema", "true").load("dbfs:/FileStore/sales_data.csv")
+sales_df = sales_df.withColumn("TotalSales", sales_df["Quantity"] * sales_df["Price"])
+product_sales = sales_df.groupBy("Product").agg(F.sum("TotalSales").alias("TotalSales"))
+
+import matplotlib.pyplot as plt
+
+# Bar Chart - Total Sales by Product
+product_sales_df = product_sales.toPandas()
+product_sales_df.plot(kind='bar', x='Product', y='TotalSales', legend=False)
+plt.title("Total Sales by Product")
+plt.xlabel("Product")
+plt.ylabel("Total Sales")
+plt.xticks(rotation=45, ha='right')
+plt.show()
+
+# Scatter Plot - Quantity vs. Price
+sales_pandas_df = sales_df.toPandas()
+plt.scatter(sales_pandas_df['Quantity'], sales_pandas_df['Price'])
+plt.title('Quantity vs. Price')
+plt.xlabel('Quantity')
+plt.ylabel('Price')
+plt.show()
+
+# Histogram: Distribution of Total Sales
+sales_pandas_df['TotalSales'].plot(kind='hist', bins=20)
+plt.title('Distribution of Total Sales')
+plt.xlabel('Total Sales')
+plt.show()
+
+
+# 5. Reading and Writing Data in Databricks
+# Task: Reading and Writing Data in Various Formats
+# Read data from a CSV file
+dbutils.fs.cp("file:/Workspace/large_dataset.csv", "dbfs:/FileStore/large_dataset.csv")
+csv_df = spark.read.format("csv").option("header", "true").option("inferSchema", "true").load("dbfs:/FileStore/large_dataset.csv")
+csv_df.show(5)
+
+# Read data from a JSON file
+json_df = spark.read.format("json").option("multiline", "true").load("dbfs:/FileStore/large_dataset.json")
+json_df.show(5)
+
+# Read data from a Parquet file
+parquet_df = spark.read.format("parquet").load("dbfs:/FileStore/large_dataset.parquet")
+parquet_df.show(5)
+
+# Read data from a Delta Table
+delta_df = spark.read.format("delta").load("dbfs:/FileStore/delta_table")
+delta_df.show(5)
+
+# Write to multiple formats (Delta, Parquet, JSON)
+csv_df.write.format("delta").mode("overwrite").save("dbfs:/FileStore/delta_output")
+csv_df.write.format("parquet").mode("overwrite").save("dbfs:/path/to/parquet_output")
+csv_df.write.format("json").mode("overwrite").save("dbfs:/path/to/json_output")
+
+
+# 6. Analyzing and Visualizing Streaming Data with Databricks
+# Task: Analyzing Streaming Data
+
+from pyspark.sql.functions import window
+# Read streaming data from CSV
+streaming_data = spark.readStream.format("csv").option("header", "true").load("dbfs:/FileStore/")
+
+# Aggregate quantity by 5-minute time window
+streaming_agg = streaming_data.groupBy(window("event_time", "5 minutes"), "product").sum("quantity")
+
+# Write streaming output to console for real-time view
+streaming_agg.writeStream.outputMode("complete").format("console").start()
+
+
+# 7. Introduction to Databricks Delta Lake
+# Task: Using Delta Lake for Data Versioning
+
+# Write the dataset as a Delta Table
+df.write.format("delta").mode("overwrite").save("/delta/large_delta_table")
+
+# Updating the delta table
+spark.sql("UPDATE delta.`/delta/large_delta_table` SET quantity = 50 WHERE product = 'Widget A'")
+
+#  Time Travel (Querying Previous Versions)
+df_version_1 = spark.read.format("delta").option("versionAsOf", 1).load("/delta/large_delta_table")
+
+# Optimize the Delta table
+spark.sql("OPTIMIZE delta.`/delta/large_delta_table` ZORDER BY (product)")
+
+# Vacuum to remove old data files
+spark.sql("VACUUM delta.`/delta/large_delta_table` RETAIN 168 HOURS")
+
+
+# 8. Managed and Unmanaged Tables
+# Task: Creating Managed and Unmanaged Tables
+
+# Managed Table
+# Load data into a DataFrame
+df = spark.read.format("csv").option("header", "true").load("dbfs:/FileStore/sales_data.csv")
+
+# Create a managed table
+df.write.format("delta").mode("overwrite").saveAsTable("managed_sales_table")
+
+# Select records from managed table
+spark.sql("SELECT * FROM managed_sales_table").show()
+
+# Unmanaged Table
+# Load data into a DataFrame
+df_unmanaged = spark.read.format("csv").option("header", "true").load("dbfs:/FileStore/sales_data.csv")
+
+# Save the DataFrame to an external location
+external_path = "dbfs:/FileStore/external_sales_data/"
+df_unmanaged.write.format("delta").mode("overwrite").save(external_path)
+
+# Create an unmanaged table with the external data location
+spark.sql(f"""CREATE TABLE unmanaged_sales_table USING DELTA LOCATION '{external_path}'""")
+
+# Select records from unmanaged table
+spark.sql("SELECT * FROM unmanaged_sales_table").show()
+
+
+# 9. Views and Temporary Views
+# Task: Working with Views in Databricks
+
+# Create a temporary view from the DataFrame
+df.createOrReplaceTempView("temp_sales_view")
+
+# Query the temporary view
+spark.sql("SELECT * FROM temp_sales_view WHERE quantity > 100").show()
+
+# Create a global temporary view from the DataFrame
+df.createOrReplaceGlobalTempView("global_temp_sales_view")
+
+# Query the global temporary view (must use the global_temp database)
+spark.sql("SELECT * FROM global_temp.global_temp_sales_view").show()

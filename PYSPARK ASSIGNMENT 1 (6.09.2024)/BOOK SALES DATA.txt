@@ -1,0 +1,105 @@
+                               BOOK SALES DATA
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, sum
+
+# Create a Spark session
+spark = SparkSession.builder.appName("BookSales").getOrCreate()
+
+# Sample data
+data = [
+    (1, 'The Catcher in the Rye', 'J.D. Salinger', 'Fiction', 15.99, 2, '2023-01-05'),
+    (2, 'To Kill a Mockingbird', 'Harper Lee', 'Fiction', 18.99, 1, '2023-01-10'),
+    (3, 'Becoming', 'Michelle Obama', 'Biography', 20.00, 3, '2023-02-12'),
+    (4, 'Sapiens', 'Yuval Noah Harari', 'Non-Fiction', 22.50, 1, '2023-02-15'),
+    (5, 'Educated', 'Tara Westover', 'Biography', 17.99, 2, '2023-03-10'),
+    (6, 'The Great Gatsby', 'F. Scott Fitzgerald', 'Fiction', 10.99, 5, '2023-03-15'),
+    (7, 'Atomic Habits', 'James Clear', 'Self-Help', 16.99, 3, '2023-04-01'),
+    (8, 'Dune', 'Frank Herbert', 'Science Fiction', 25.99, 1, '2023-04-10'),
+    (9, '1984', 'George Orwell', 'Fiction', 14.99, 2, '2023-04-12'),
+    (10, 'The Power of Habit', 'Charles Duhigg', 'Self-Help', 18.00, 1, '2023-05-01')
+]
+
+# Define schema for the data
+columns = ['sale_id', 'book_title', 'author', 'genre', 'sale_price', 'quantity', 'date']
+
+# Create DataFrame
+df = spark.createDataFrame(data, schema=columns)
+df.show()
+
+# Calculate total sales revenue for each book
+df_with_revenue = df.withColumn("total_revenue", col("sale_price") * col("quantity"))
+
+
+#1. Group by genre and calculate total sales revenue per genre
+total_sales_revenue_per_genre = df_with_revenue.groupBy("genre").agg(sum("total_revenue").alias("total_sales_revenue"))
+total_sales_revenue_per_genre.show()
+
+
+#2. Filter Books Sold in the "Fiction" Genre
+#Filter the dataset to include only books sold in the "Fiction" genre.
+
+fiction_books = df.filter(df.genre == 'Fiction')
+fiction_books.show()
+
+
+#3. Find the Book with the Highest Sale Price
+#Identify the book with the highest individual sale price.
+
+highest_sale_price_book = df.orderBy(col("sale_price").desc()).limit(1)
+highest_sale_price_book.show()
+
+#4. Calculate Total Quantity of Books Sold by Author
+#Group the data by author and calculate the total quantity of books sold for each author.
+
+total_quantity_by_author = df.groupBy("author").agg(sum("quantity").alias("total_quantity"))
+total_quantity_by_author.show()
+
+
+#5. Identify Sales Transactions Worth More Than $50
+#Filter the sales transactions where the total sales amount (sale_price * quantity) is greater than $50.
+
+df_with_total_sales = df.withColumn("total_sales", col("sale_price") * col("quantity"))
+transactions_above_50 = df_with_total_sales.filter(col("total_sales") > 50)
+transactions_above_50.show()
+
+
+6. Find the Average Sale Price per Genre
+#Group the data by genre and calculate the average sale price for books in each genre.
+
+average_sale_price_per_genre = df.groupBy("genre").agg(avg("sale_price").alias("average_sale_price"))
+average_sale_price_per_genre.show()
+
+
+#7. Count the Number of Unique Authors in the Dataset
+#Count how many unique authors are present in the dataset
+
+unique_authors_count = df.select("author").distinct().count()
+print(f"Number of unique authors: {unique_authors_count}")
+
+
+#8.. Find the Top 3 Best-Selling Books by Quantity
+#Identify the top 3 best-selling books based on the total quantity sold.
+
+top_books_by_quantity = df.groupBy("book_title").agg(sum("quantity").alias("total_quantity"))
+top_3_books = top_books_by_quantity.orderBy(col("total_quantity").desc()).limit(3)
+top_3_books.show()
+
+
+#9. Calculate Total Sales for Each Month
+#Group the sales data by month and calculate the total sales revenue for each month.
+
+from pyspark.sql.functions import year, month, col
+
+df_with_total_sales = df.withColumn("total_sales", col("sale_price") * col("quantity"))
+df_with_month_year = df_with_total_sales.withColumn("month", month("date")).withColumn("year", year("date"))
+total_sales_by_month = df_with_month_year.groupBy("year", "month").agg(sum("total_sales").alias("total_sales"))
+
+total_sales_by_month.orderBy("year", "month").show()
+
+
+#10. Create a New Column for Total Sales Amount
+#Add a new column total_sales that calculates the total sales amount for each transaction (sale_price * quantity ).
+
+df_with_total_sales = df.withColumn("total_sales", col("sale_price") * col("quantity"))
+df_with_total_sales.show()

@@ -1,0 +1,32 @@
+ Assignment 2:(Azure Databricks)
+
+#1. Load the JSON data:
+#Load the product_data.json file into a DataFrame.
+dbutils.fs.cp("file:/Workspace/Shared/product_data.json","dbfs:/Filestore/product_data.json")
+
+#Display the first 10 rows and inspect the schema.
+
+df_json=spark.read.format("json").option("multiline","true").load("dbfs:/Filestore/product_data.json")
+df_json.show()
+
+#2. Data Cleaning:
+#Remove rows where Stock is less than 30.
+df_filtered=df_json.filter(df_json.Stock>30)
+
+#Filter the products that belong to the "Electronics" category.
+df_filtered=df_filtered.filter(df_filtered.Category=="Electronics")
+df_filtered.show()
+
+
+#3.Data Aggregation:
+#Calculate the total stock for products in the "Furniture" category.
+df_aggregated=df_json.filter(df_json.Category=="Furniture").groupBy().sum("Stock")
+df_aggregated.show()
+
+#Find the average price of all products in the dataset.
+df_json.groupBy().avg("Price").show()
+
+
+#4. Write the Data to JSON:
+#Save the cleaned and aggregated data into a new JSON file.
+df_aggregated.write.json('dbfs:/Filestore/cleaned_aggregated_data.json')

@@ -1,0 +1,133 @@
+                                WEATHER DATA
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import avg, col
+
+# Create a Spark session
+spark = SparkSession.builder.appName("WeatherObservations").getOrCreate()
+
+# Sample data
+data = [
+    ('2023-01-01', 'New York', 5, 60, 20, 'Cloudy'),
+    ('2023-01-01', 'Los Angeles', 15, 40, 10, 'Sunny'),
+    ('2023-01-01', 'Chicago', -2, 75, 25, 'Snow'),
+    ('2023-01-02', 'New York', 3, 65, 15, 'Rain'),
+    ('2023-01-02', 'Los Angeles', 18, 35, 8, 'Sunny'),
+    ('2023-01-02', 'Chicago', -5, 80, 30, 'Snow'),
+    ('2023-01-03', 'New York', 6, 55, 22, 'Sunny'),
+    ('2023-01-03', 'Los Angeles', 20, 38, 12, 'Sunny'),
+    ('2023-01-03', 'Chicago', -1, 70, 18, 'Cloudy')
+]
+
+# Define schema for the data
+columns = ['date', 'city', 'temperature_c', 'humidity', 'wind_speed_kph', 'condition']
+
+# Create DataFrame
+df = spark.createDataFrame(data, schema=columns)
+df.show()
+
+#1. Group by city and calculate the average temperature
+average_temperature_per_city = df.groupBy("city").agg(avg("temperature_c").alias("average_temperature"))
+
+# Show the result
+average_temperature_per_city.show()
+
+
+#2. Filter Days with Temperature Below Freezing
+#Filter the data to show only the days where the temperature was below freezing (below 0°C).
+
+below_freezing_days = df.filter(col("temperature_c") < 0)
+below_freezing_days.show()
+
+
+#3. Find the City with the Highest Wind Speed on a Specific Day
+ #Find the city with the highest wind speed on a specific day (e.g., 01-02 ).
+
+specific_date = '2023-01-02'
+filtered_df = df.filter(col("date") == specific_date)
+max_wind_speed_city = filtered_df.orderBy(col("wind_speed_kph").desc()).limit(1)
+max_wind_speed_city.show()
+
+
+#4. Calculate the Total Number of Days with Rainy Weather
+# Count the number of days where the condition was "Rain
+
+rainy_days_count = df.filter(col("condition") == 'Rain').select('date').distinct().count()
+print(f"Total number of days with rainy weather: {rainy_days_count}")
+
+
+#5.Calculate the Average Humidity for Each Weather Condition
+#Group the data by condition condition and calculate the average humidity for each weather condition (e.g., Sunny, Rainy, Cloudy).
+
+average_humidity_per_condition = df.groupBy("condition").agg(avg("humidity").alias("average_humidity"))
+average_humidity_per_condition.show()
+
+
+#6.. Find the Hottest Day in Each City
+#For each city, find the day with the highest recorded temperature.
+ 
+from pyspark.sql.functions import col, max,expr
+max_temp_per_city = df.groupBy("city").agg(
+    max("temperature_c").alias("max_temperature")
+)
+
+# Alias DataFrames to avoid ambiguity
+df_alias = df.alias("df")
+max_temp_alias = max_temp_per_city.alias("max_temp")
+
+# Join with the original DataFrame to get the date of the hottest temperature
+hottest_day_per_city = df_alias.join(
+    max_temp_alias,
+    (df_alias.city == max_temp_alias.city) & (df_alias.temperature_c == max_temp_alias.max_temperature),
+    "inner"
+).select(
+    df_alias.city,
+    df_alias.date,
+    df_alias.temperature_c
+)
+
+# Show the result
+hottest_day_per_city.show()
+
+
+#7. Identify Cities That Experienced Snow
+#Filter the dataset to show only the cities that experienced "Snow" in the condition.
+
+cities_with_snow = df.filter(col("condition") == 'Snow').select("city").distinct()
+cities_with_snow.show()
+
+
+#8. Calculate the Average Wind Speed for Days When the Condition was Sunny
+#Filter the dataset for condition = 'Sunny' and calculate the average wind speed on sunny days.
+
+average_wind_speed_sunny = df.filter(col("condition") == 'Sunny').agg(
+    avg("wind_speed_kph").alias("average_wind_speed"))
+average_wind_speed_sunny.show()
+
+
+#9. Find the Coldest Day Across All Cities
+#Identify the day with the lowest temperature across all cities
+
+coldest_day_temp = df.agg(min("temperature_c").alias("min_temperature"))
+
+coldest_day = df.join(
+    coldest_day_temp, on=col("temperature_c") == col("min_temperature"), how="inner"
+).select("date", "city", "temperature_c")
+
+coldest_day.show()
+
+
+#10.Create a New Column for Wind Chill
+
+wind_chill_expr = (
+    "13.12 + "
+    "0.6215 * temperature_c - "
+    "11.37 * POWER(wind_speed_kph, 0.16) + "
+    "0.3965 * temperature_c * POWER(wind_speed_kph, 0.16)"
+)
+
+# Add the wind_chill column
+df_with_wind_chill = df.withColumn("wind_chill", expr(wind_chill_expr))
+
+# Show the result
+df_with_wind_chill.show()
